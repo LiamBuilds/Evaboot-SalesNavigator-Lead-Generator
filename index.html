@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Review — HAGGERTY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* ============================================================
+   CONFIG — edit these if your n8n webhook URLs ever change
+   ============================================================ */
+const CONFIG = {
+  BATCH_URL:   "https://haggertybuilds.app.n8n.cloud/webhook/d50e89be-be92-4efd-a88f-6fed5f57fad8/lead-review-batch",
+  APPROVE_URL: "https://haggertybuilds.app.n8n.cloud/webhook/9ef10ebf-bd23-4453-882b-bb29768130a0/lead-review-approve",
+  LABELS: ["Industrial", "Automotive", "Property Manager"],
+  HOME_TERRITORIES: ["Central Valley", "Sacramento / North", "Bay Area"]
+};
+</script>
+<style>
+:root{
+  --ink:#1F1E1C; --ink-soft:#5C5A55; --ink-faint:#A9A7A1;
+  --paper:#EBEAE6; --card:#FFFFFF;
+  --gray:#4D4D4D; --rule:#CBC9C3; --rule-soft:#E4E2DD;
+  --orange:#F68922; --orange-deep:#B4610C; --orange-wash:#FDF2E4;
+  --red:#A32118; --red-wash:#FBEDEC;
+  --shadow:0 1px 0 rgba(31,30,28,.06), 0 2px 8px rgba(31,30,28,.05);
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+  --display:'Archivo',system-ui,'Helvetica Neue',Arial,sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:96px}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+a{color:var(--orange-deep)}
+
+/* ---------- Title block ---------- */
+.titleblock{background:var(--gray);color:#fff;border-bottom:3px solid var(--orange)}
+.tb-top{max-width:1180px;margin:0 auto;padding:var(--s5) var(--s5) var(--s4);
+  display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap}
+.mark{width:34px;height:34px;flex:none;display:block}
+.mark rect{fill:var(--orange)}
+.wordmark{font-family:var(--display);font-weight:700;font-size:23px;
+  letter-spacing:.15em;text-transform:uppercase;line-height:1}
+.tb-title{font-family:var(--display);font-weight:500;font-size:13px;
+  letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.72);
+  border-left:1px solid rgba(255,255,255,.28);padding-left:var(--s4)}
+.tb-grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid rgba(255,255,255,.18)}
+.tb-cell{padding:var(--s3) var(--s5) var(--s4);border-right:1px solid rgba(255,255,255,.18)}
+.tb-cell:last-child{border-right:0}
+.tb-key{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;color:rgba(255,255,255,.58);margin-bottom:2px}
+.tb-val{font-family:var(--mono);font-size:19px;font-weight:500;letter-spacing:-.01em}
+
+/* ---------- Notice ---------- */
+.notice{max-width:1180px;margin:var(--s4) auto 0;padding:var(--s3) var(--s4);
+  border:1px solid var(--orange);border-left:4px solid var(--orange);
+  background:var(--orange-wash);font-size:14px}
+.notice.err{border-color:var(--red);border-left-color:var(--red);background:var(--red-wash)}
+
+/* ---------- Toolbar ---------- */
+.toolbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--rule)}
+.tbar{max-width:1180px;margin:0 auto;padding:var(--s3) var(--s5);
+  display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap}
+.btn{font-family:var(--display);font-size:11px;font-weight:600;letter-spacing:.13em;
+  text-transform:uppercase;padding:9px 14px;border:1px solid var(--gray);
+  background:transparent;color:var(--gray);cursor:pointer;border-radius:0;
+  transition:background .12s ease,color .12s ease}
+.btn:hover{background:var(--gray);color:#fff}
+.spacer{flex:1}
+.tally{display:flex;gap:var(--s5);font-family:var(--mono);font-size:13px}
+.tally b{font-weight:600;font-size:15px;display:block}
+.tally .t-dupe b{color:var(--orange-deep)}
+.tally .t-out b{color:var(--red)}
+.tally i{font-style:normal;color:var(--ink-soft);font-size:10px;font-family:var(--display);
+  letter-spacing:.14em;text-transform:uppercase;display:block}
+
+/* ---------- Log ---------- */
+.log{max-width:1180px;margin:var(--s5) auto;padding:0 var(--s5);
+  display:flex;flex-direction:column;gap:var(--s3)}
+.row{background:var(--card);box-shadow:var(--shadow);border-left:5px solid var(--rule);
+  display:grid;grid-template-columns:58px 1fr 226px;
+  transition:border-color .15s ease,opacity .15s ease}
+.row.is-dupe{border-left-color:var(--orange)}
+.row.is-nomatch{border-left-color:var(--red)}
+.row.is-dropped{opacity:.4}
+
+.cell-check{padding:var(--s4) 0 var(--s4) var(--s4);
+  display:flex;flex-direction:column;align-items:center;gap:6px}
+.cell-check input{width:18px;height:18px;accent-color:var(--gray);cursor:pointer;margin:0}
+.linenum{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+
+.cell-main{padding:var(--s4) var(--s4) var(--s4) var(--s3);min-width:0}
+.name{font-family:var(--display);font-weight:600;font-size:17px;margin:0 0 1px}
+.role{font-size:14px;color:var(--ink-soft);margin-bottom:var(--s3)}
+.role b{color:var(--ink);font-weight:600}
+.seniority{font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);border:1px solid var(--rule);
+  padding:2px 6px;margin-left:6px;white-space:nowrap}
+
+.contact{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);margin-bottom:var(--s3)}
+.field{min-width:0}
+.field-k{font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-soft)}
+.field-v{font-family:var(--mono);font-size:13px;word-break:break-word}
+.field-v.empty{color:var(--ink-faint)}
+.field-v a{text-decoration:none;border-bottom:1px solid #E5C9A5}
+.field-v a:hover{border-bottom-color:var(--orange-deep)}
+
+.company{border-top:1px solid var(--rule-soft);padding-top:var(--s3);
+  font-size:13.5px;color:var(--ink-soft)}
+.co-head{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin-bottom:3px}
+.co-name{color:var(--ink);font-weight:600;font-size:14.5px}
+.co-links{display:flex;gap:var(--s3);font-family:var(--display);font-size:10px;
+  font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.co-links a{text-decoration:none;border-bottom:1px solid #E5C9A5}
+.co-links span{color:var(--ink-faint);border-bottom:1px solid var(--rule-soft)}
+.co-meta{font-family:var(--mono);font-size:12px}
+.signals{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s2);
+  padding-top:var(--s2);border-top:1px dotted var(--rule-soft)}
+.sig{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.sig em{font-style:normal;font-family:var(--display);font-size:9px;font-weight:600;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);display:block}
+.desc{margin-top:6px}
+.bio{margin-top:5px;font-size:13px;font-style:italic}
+.kw{margin-top:5px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
+
+.cell-side{padding:var(--s4);border-left:1px solid var(--rule-soft);
+  display:flex;flex-direction:column;gap:var(--s3)}
+.stamp{font-family:var(--display);font-size:10px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;border:2px solid currentColor;padding:5px 8px;align-self:flex-start}
+.stamp.dupe{color:var(--orange-deep)}
+.stamp.nomatch{color:var(--red)}
+.terr{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;padding:5px 8px;align-self:flex-start;
+  background:#F2F1ED;color:var(--ink-soft);border:1px solid var(--rule)}
+.terr.out{background:var(--red-wash);color:var(--red);border-color:var(--red)}
+select{width:100%;font-family:var(--body);font-size:13px;padding:7px 8px;
+  border:1px solid var(--rule);background:#fff;color:var(--ink);border-radius:0;cursor:pointer}
+select:disabled{opacity:.5;cursor:not-allowed}
+.side-k{font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px}
+
+/* ---------- Approval bar ---------- */
+.approve{position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:var(--gray);border-top:3px solid var(--orange)}
+.ap{max-width:1180px;margin:0 auto;padding:var(--s4) var(--s5);
+  display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap}
+.ap-count{color:#fff;font-family:var(--mono);font-size:14px}
+.ap-count b{font-size:20px;font-weight:600}
+.ap-note{color:rgba(255,255,255,.6);font-size:12.5px}
+.btn-send{margin-left:auto;font-family:var(--display);font-size:12px;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;padding:13px 26px;border:0;
+  background:var(--orange);color:#231301;cursor:pointer;border-radius:0;
+  transition:background .12s ease}
+.btn-send:hover{background:#FF9A38}
+.btn-send[disabled]{background:#8A8A8A;color:#D8D8D8;cursor:not-allowed}
+
+@media (max-width:860px){
+  .tb-grid{grid-template-columns:repeat(2,1fr)}
+  .tb-cell:nth-child(2){border-right:0}
+  .row{grid-template-columns:46px 1fr}
+  .cell-side{grid-column:1 / -1;border-left:0;border-top:1px solid var(--rule-soft);
+    flex-direction:row;align-items:flex-end;gap:var(--s3);flex-wrap:wrap}
+  .cell-side .lbl-wrap{flex:1;min-width:150px}
+  .tally{gap:var(--s4);width:100%;order:3}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<header class="titleblock">
+  <div class="tb-top">
+    <svg class="mark" viewBox="0 0 253 253" aria-hidden="true">
+      <rect x="191" y="0"   width="62" height="253"/>
+      <rect x="96"  y="94"  width="61" height="61"/>
+      <rect x="0"   y="192" width="61" height="61"/>
+      <rect x="96"  y="192" width="61" height="61"/>
+    </svg>
+    <div class="wordmark">Haggerty</div>
+    <div class="tb-title">Lead Review</div>
+  </div>
+  <div class="tb-grid">
+    <div class="tb-cell"><div class="tb-key">Batch</div><div class="tb-val" id="m-batch">—</div></div>
+    <div class="tb-cell"><div class="tb-key">Enriched</div><div class="tb-val" id="m-date">—</div></div>
+    <div class="tb-cell"><div class="tb-key">Leads</div><div class="tb-val" id="m-count">—</div></div>
+    <div class="tb-cell"><div class="tb-key">Status</div><div class="tb-val" id="m-status">Loading</div></div>
+  </div>
+</header>
+
+<div id="notice-slot"></div>
+
+<div class="toolbar">
+  <div class="tbar">
+    <button class="btn" id="b-all">Keep all</button>
+    <button class="btn" id="b-none">Remove all</button>
+    <button class="btn" id="b-dupes">Remove leads in Pipedrive</button>
+    <button class="btn" id="b-out">Remove out of territory</button>
+    <div class="spacer"></div>
+    <div class="tally" aria-live="polite">
+      <div><i>Keeping</i><b id="t-keep">0</b></div>
+      <div><i>Removing</i><b id="t-drop">0</b></div>
+      <div class="t-dupe"><i>In Pipedrive</i><b id="t-dupe">0</b></div>
+      <div class="t-out"><i>Out of area</i><b id="t-out">0</b></div>
+    </div>
+  </div>
+</div>
+
+<main class="log" id="log"></main>
+
+<div class="approve">
+  <div class="ap">
+    <div class="ap-count"><b id="ap-n">0</b> leads ready</div>
+    <div class="ap-note" id="ap-note">Review each lead, then send.</div>
+    <button class="btn-send" id="b-send" disabled>Send to Pipedrive</button>
+  </div>
+</div>
+
+<script>
+const SAMPLE = {
+  batchId:"SAMPLE", generatedAt:new Date().toISOString(),
+  leads:[
+    {fullName:"Dana Whitfield",title:"Director of Facilities",seniority:"director",
+     email:"d.whitfield@valleycoldchain.com",officePhone:"(209) 555-0182",
+     linkedinUrl:"https://www.linkedin.com/in/example",
+     bio:"Facilities leader, cold storage and distribution | Director of Facilities",
+     company:"Valley Cold Chain",companyIndustry:"warehousing and storage",companySize:420,
+     companyWebsite:"https://valleycoldchain.example",
+     companyLinkedin:"https://www.linkedin.com/company/example",
+     companyHQ:"Stockton, CA, United States",territory:"Central Valley",
+     companyRevenue:"$85M",companyFounded:1998,companyLocations:6,
+     companyKeywords:"cold storage, 3PL, distribution, food logistics",
+     companyDescription:"Temperature-controlled warehousing across the Central Valley.",
+     suggestedLabel:"Industrial",matched:true,isDuplicate:false},
+    {fullName:"Marco Benitez",title:"Fixed Operations Director",seniority:"director",
+     email:"mbenitez@benitezautogroup.com",officePhone:"(916) 555-0143",linkedinUrl:"",
+     bio:"Multi-rooftop dealer operations | Fixed Operations Director",
+     company:"Benitez Auto Group",companyIndustry:"retail motor vehicles",companySize:180,
+     companyWebsite:"https://benitezauto.example",
+     companyLinkedin:"https://www.linkedin.com/company/example",
+     companyHQ:"Sacramento, CA, United States",territory:"Sacramento / North",
+     companyRevenue:"$210M",companyFounded:1987,companyLocations:6,
+     companyKeywords:"dealership, service center, collision",
+     companyDescription:"Six-rooftop dealership group serving greater Sacramento.",
+     suggestedLabel:"Automotive",matched:true,isDuplicate:false},
+    {fullName:"Priya Raghavan",title:"Director of Capital Projects",seniority:"director",
+     email:"praghavan@northgateresidential.com",officePhone:"(510) 555-0119",
+     linkedinUrl:"https://www.linkedin.com/in/example",
+     bio:"Value-add multifamily renovation programs | Director of Capital Projects",
+     company:"Northgate Residential",companyIndustry:"real estate",companySize:260,
+     companyWebsite:"https://northgateres.example",
+     companyLinkedin:"https://www.linkedin.com/company/example",
+     companyHQ:"Oakland, CA, United States",territory:"Bay Area",
+     companyRevenue:"$140M",companyFounded:2004,companyLocations:31,
+     companyKeywords:"multifamily, value add, workforce housing",
+     companyDescription:"Owner-operator of workforce housing across Northern California.",
+     suggestedLabel:"Property Manager",matched:true,isDuplicate:true},
+    {fullName:"Warren Ochoa",title:"Plant Manager",seniority:"",email:"",officePhone:"",
+     linkedinUrl:"",bio:"",company:"Delta Packaging Partners",companyIndustry:"",
+     companySize:"",companyWebsite:"",companyLinkedin:"",companyHQ:"",territory:"",
+     companyRevenue:"",companyFounded:"",companyLocations:"",companyKeywords:"",
+     companyDescription:"",suggestedLabel:"",matched:false,isDuplicate:false},
+    {fullName:"Sheila Kramm",title:"Director of Plant Operations",seniority:"director",
+     email:"skramm@riverbendhealth.org",officePhone:"(209) 555-0166",
+     linkedinUrl:"https://www.linkedin.com/in/example",
+     bio:"Hospital facilities and capital planning | Director of Plant Operations",
+     company:"Riverbend Health",companyIndustry:"hospitals and health care",companySize:1400,
+     companyWebsite:"https://riverbendhealth.example",
+     companyLinkedin:"https://www.linkedin.com/company/example",
+     companyHQ:"Modesto, CA, United States",territory:"Central Valley",
+     companyRevenue:"$620M",companyFounded:1961,companyLocations:4,
+     companyKeywords:"health system, acute care, outpatient",
+     companyDescription:"Regional health system with four campuses in the Central Valley.",
+     suggestedLabel:"",matched:true,isDuplicate:false},
+    {fullName:"Curtis Alderman",title:"VP of Real Estate",seniority:"vp",
+     email:"calderman@meridianretail.com",officePhone:"(602) 555-0177",
+     linkedinUrl:"https://www.linkedin.com/in/example",
+     bio:"Portfolio strategy and development | VP of Real Estate",
+     company:"Meridian Retail Partners",companyIndustry:"real estate",companySize:340,
+     companyWebsite:"https://meridianretail.example",
+     companyLinkedin:"https://www.linkedin.com/company/example",
+     companyHQ:"Phoenix, AZ, United States",territory:"Outside territory",
+     companyRevenue:"$300M",companyFounded:1995,companyLocations:52,
+     companyKeywords:"retail centers, grocery anchored",
+     companyDescription:"Owner of grocery-anchored retail centers across the Southwest.",
+     suggestedLabel:"Property Manager",matched:true,isDuplicate:false}
+  ]
+};
+
+let LEADS=[], isSample=false;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const has=v=>v!==undefined&&v!==null&&String(v).trim()!=="";
+const notice=(h,e)=>{$("notice-slot").innerHTML='<div class="notice'+(e?" err":"")+'">'+h+'</div>';};
+const isOut=l=>String(l.territory||"")==="Outside territory";
+
+function normalize(p){
+  if(Array.isArray(p)) return {batchId:"—",generatedAt:null,leads:p};
+  if(p&&Array.isArray(p.leads)) return p;
+  if(p&&p.data) return normalize(p.data);
+  if(Array.isArray(p?.[0]?.leads)) return p[0];
+  return {batchId:"—",generatedAt:null,leads:[]};
+}
+
+async function load(){
+  let payload=null;
+  try{
+    const r=await fetch(CONFIG.BATCH_URL);
+    if(!r.ok) throw new Error("Server returned "+r.status);
+    payload=await r.json();
+  }catch(err){
+    isSample=true;
+    notice('<strong>Showing sample data.</strong> The live batch could not be loaded ('+
+      esc(err.message)+'). Publish both n8n workflows and run an export, then reload.',true);
+    payload=SAMPLE;
+  }
+  const b=normalize(payload);
+  if(!isSample&&b.leads.length===0)
+    notice('<strong>No leads in the current batch.</strong> Drop an Evaboot export in the WorkFlow Leads folder, then reload once the run finishes.');
+
+  LEADS=b.leads.map((l,i)=>({...l,_i:i,_keep:!l.isDuplicate,_label:l.suggestedLabel||""}));
+  $("m-batch").textContent=b.batchId||"—";
+  $("m-date").textContent=b.generatedAt
+    ? new Date(b.generatedAt).toLocaleDateString("en-US",{month:"2-digit",day:"2-digit",year:"2-digit"}) : "—";
+  $("m-count").textContent=LEADS.length;
+  $("m-status").textContent=isSample?"Sample":"Pending";
+  render();
+}
+
+const labelOptions=sel=>['<option value="">No label</option>']
+  .concat(CONFIG.LABELS.map(l=>'<option value="'+esc(l)+'"'+(l===sel?" selected":"")+'>'+esc(l)+'</option>')).join("");
+
+function field(k,v,href){
+  let val=has(v)?esc(v):"not found";
+  if(has(v)&&href) val='<a href="'+esc(href)+'" target="_blank" rel="noopener">'+val+'</a>';
+  return '<div class="field"><div class="field-k">'+esc(k)+'</div>'+
+         '<div class="field-v'+(has(v)?"":" empty")+'">'+val+'</div></div>';
+}
+function sig(k,v,suffix){
+  if(!has(v)) return "";
+  return '<div class="sig"><em>'+esc(k)+'</em>'+esc(v)+(suffix?" "+esc(suffix):"")+'</div>';
+}
+
+function render(){
+  $("log").innerHTML=LEADS.map(l=>{
+    const cls=["row"];
+    if(l.isDuplicate) cls.push("is-dupe");
+    else if(l.matched===false) cls.push("is-nomatch");
+    if(!l._keep) cls.push("is-dropped");
+
+    let stamp="";
+    if(l.isDuplicate) stamp='<div class="stamp dupe">Already in Pipedrive</div>';
+    else if(l.matched===false) stamp='<div class="stamp nomatch">No Apollo match</div>';
+
+    const terr=has(l.territory)
+      ? '<div class="terr'+(isOut(l)?" out":"")+'">'+esc(l.territory)+'</div>' : "";
+
+    const meta=[l.companyIndustry, has(l.companySize)?l.companySize+" employees":"", l.companyHQ]
+      .filter(Boolean).map(esc).join(" &middot; ");
+
+    const coLinks=
+      (has(l.companyWebsite)
+        ? '<a href="'+esc(l.companyWebsite)+'" target="_blank" rel="noopener">Website</a>'
+        : '<span>No website</span>')+
+      (has(l.companyLinkedin)
+        ? '<a href="'+esc(l.companyLinkedin)+'" target="_blank" rel="noopener">Company LinkedIn</a>'
+        : '<span>No company LinkedIn</span>');
+
+    const signals=[
+      sig("Revenue", l.companyRevenue),
+      sig("Founded", l.companyFounded),
+      sig("Locations", l.companyLocations)
+    ].join("");
+
+    return '<article class="'+cls.join(" ")+'">'+
+      '<div class="cell-check">'+
+        '<input type="checkbox" data-i="'+l._i+'"'+(l._keep?" checked":"")+
+          ' aria-label="Keep '+esc(l.fullName||"lead")+'">'+
+        '<span class="linenum">'+String(l._i+1).padStart(3,"0")+'</span>'+
+      '</div>'+
+      '<div class="cell-main">'+
+        '<h3 class="name">'+esc(l.fullName||"Name not found")+
+          (has(l.seniority)?'<span class="seniority">'+esc(l.seniority)+'</span>':'')+'</h3>'+
+        '<div class="role">'+esc(l.title||"Title not found")+
+          (has(l.company)?' at <b>'+esc(l.company)+'</b>':'')+'</div>'+
+        '<div class="contact">'+
+          field("Email", l.email, has(l.email)?"mailto:"+l.email:null)+
+          field("Office phone", l.officePhone)+
+          (has(l.mobilePhone)?field("Mobile", l.mobilePhone):"")+
+          field("LinkedIn", has(l.linkedinUrl)?"View profile":"", l.linkedinUrl||null)+
+        '</div>'+
+        '<div class="company">'+
+          '<div class="co-head">'+
+            '<span class="co-name">'+esc(l.company||"Company not found")+'</span>'+
+            '<span class="co-links">'+coLinks+'</span>'+
+          '</div>'+
+          (meta?'<div class="co-meta">'+meta+'</div>':'')+
+          (signals?'<div class="signals">'+signals+'</div>':'')+
+          (has(l.companyDescription)?'<div class="desc">'+esc(l.companyDescription)+'</div>':'')+
+          (has(l.bio)?'<div class="bio">'+esc(l.bio)+'</div>':'')+
+          (has(l.companyKeywords)?'<div class="kw">'+esc(l.companyKeywords)+'</div>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="cell-side">'+
+        stamp+terr+
+        '<div class="lbl-wrap"><div class="side-k">Pipedrive label</div>'+
+          '<select data-label="'+l._i+'"'+(l._keep?"":" disabled")+'>'+labelOptions(l._label)+'</select>'+
+        '</div>'+
+      '</div>'+
+    '</article>';
+  }).join("");
+  tally();
+}
+
+function tally(){
+  const keep=LEADS.filter(l=>l._keep).length;
+  const dupe=LEADS.filter(l=>l.isDuplicate).length;
+  const out=LEADS.filter(isOut).length;
+  $("t-keep").textContent=keep;
+  $("t-drop").textContent=LEADS.length-keep;
+  $("t-dupe").textContent=dupe;
+  $("t-out").textContent=out;
+  $("ap-n").textContent=keep;
+  $("b-send").disabled=keep===0||isSample;
+  $("ap-note").textContent=isSample
+    ? "Sending is off while sample data is showing."
+    : (dupe>0 ? dupe+" lead"+(dupe===1?" is":"s are")+" already in Pipedrive and will be skipped."
+              : "Review each lead, then send.");
+}
+
+document.addEventListener("change",e=>{
+  const cb=e.target.closest('input[type="checkbox"][data-i]');
+  if(cb){
+    LEADS[+cb.dataset.i]._keep=cb.checked;
+    const row=cb.closest(".row");
+    row.classList.toggle("is-dropped",!cb.checked);
+    const sel=row.querySelector("select[data-label]");
+    if(sel) sel.disabled=!cb.checked;
+    tally(); return;
+  }
+  const sl=e.target.closest("select[data-label]");
+  if(sl) LEADS[+sl.dataset.label]._label=sl.value;
+});
+
+$("b-all").onclick  =()=>{LEADS.forEach(l=>l._keep=true);render();};
+$("b-none").onclick =()=>{LEADS.forEach(l=>l._keep=false);render();};
+$("b-dupes").onclick=()=>{LEADS.forEach(l=>{if(l.isDuplicate)l._keep=false;});render();};
+$("b-out").onclick  =()=>{LEADS.forEach(l=>{if(isOut(l))l._keep=false;});render();};
+
+$("b-send").onclick=async()=>{
+  const btn=$("b-send"), kept=LEADS.filter(l=>l._keep);
+  if(!kept.length) return;
+  btn.disabled=true; btn.textContent="Sending…";
+  const strip=l=>{const o={...l};o.suggestedLabel=l._label;delete o._i;delete o._keep;delete o._label;return o;};
+  try{
+    const r=await fetch(CONFIG.APPROVE_URL,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({batchId:$("m-batch").textContent,
+        leads:kept.map(strip),removed:LEADS.filter(l=>!l._keep).map(strip)})
+    });
+    if(!r.ok) throw new Error("Server returned "+r.status);
+    const res=await r.json().catch(()=>({}));
+    const made=Array.isArray(res)?res.length:(res.created??kept.length);
+    $("m-status").textContent="Sent";
+    notice('<strong>'+made+' lead'+(made===1?"":"s")+' sent to Pipedrive.</strong> '+
+      'They are in HAGGERTY Lead flow at the Opportunity stage, owned by Pat.');
+    btn.textContent="Sent";
+    window.scrollTo({top:0,behavior:"smooth"});
+  }catch(err){
+    notice('<strong>Nothing was sent.</strong> '+esc(err.message)+
+      '. Check that both workflows are published, then try again.',true);
+    btn.disabled=false; btn.textContent="Send to Pipedrive";
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+};
+
+load();
+</script>
+</body>
+</html>
