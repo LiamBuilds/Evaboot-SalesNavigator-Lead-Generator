@@ -458,6 +458,13 @@ $("b-reset").onclick = () => { resetAll(); document.querySelectorAll(".chip").fo
 function lines(id){
   const v = ($(id) && $(id).value || "").trim();
   if(!v) return [];
+  // Split on newlines only, so "Stockton, CA" stays one location string.
+  return v.split(/\n/).map(s=>s.trim()).filter(Boolean);
+}
+function csv(id){
+  // For comma-separated code lists (NAICS, keywords) split on commas too.
+  const v = ($(id) && $(id).value || "").trim();
+  if(!v) return [];
   return v.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
 }
 function val(id){ const e=$(id); return e && e.value.trim() !== "" ? e.value.trim() : undefined; }
@@ -469,12 +476,12 @@ function collect(){
     person_locations: lines("person_locations"),
     organization_locations: lines("organization_locations"),
     organization_num_employees_ranges: getChecks("hc"),
-    organization_naics_codes: lines("organization_naics_codes"),
-    not_organization_naics_codes: lines("not_organization_naics_codes"),
-    organization_sic_codes: lines("organization_sic_codes"),
-    not_organization_sic_codes: lines("not_organization_sic_codes"),
-    q_organization_keyword_tags: lines("q_organization_keyword_tags"),
-    q_organization_domains_list: lines("q_organization_domains_list"),
+    organization_naics_codes: csv("organization_naics_codes"),
+    not_organization_naics_codes: csv("not_organization_naics_codes"),
+    organization_sic_codes: csv("organization_sic_codes"),
+    not_organization_sic_codes: csv("not_organization_sic_codes"),
+    q_organization_keyword_tags: csv("q_organization_keyword_tags"),
+    q_organization_domains_list: csv("q_organization_domains_list"),
     contact_email_status: getChecks("es"),
     q_keywords: val("q_keywords"),
     include_similar_titles: $("include_similar").value === "true",
