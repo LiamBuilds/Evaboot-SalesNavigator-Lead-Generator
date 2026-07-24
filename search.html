@@ -13,6 +13,7 @@
    ============================================================ */
 const CONFIG = {
   SEARCH_URL: "https://haggertybuilds.app.n8n.cloud/webhook/apollo-lead-search",
+  BATCH_URL: "https://haggertybuilds.app.n8n.cloud/webhook/lead-review-batch",
   REVIEW_PAGE: "index.html"
 };
 </script>
@@ -116,6 +117,22 @@ input:focus,textarea:focus,select:focus{border-color:var(--gray)}
 .enrich-row{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--rule);
   display:flex;gap:var(--s4);align-items:flex-end;flex-wrap:wrap}
 .enrich-row .f{max-width:170px}
+.progress{display:none;margin-top:var(--s4);padding-top:var(--s4);
+  border-top:1px solid var(--rule)}
+.progress.show{display:block}
+.pg-bar{height:10px;background:var(--rule-soft);border:1px solid var(--rule);
+  overflow:hidden;margin-bottom:var(--s3)}
+.pg-fill{height:100%;width:0;background:var(--orange);
+  transition:width .4s ease}
+.pg-fill.indeterminate{width:35%;animation:pgslide 1.1s ease-in-out infinite}
+@keyframes pgslide{0%{margin-left:-35%}100%{margin-left:100%}}
+.pg-fill.done{width:100% !important;animation:none;background:var(--orange-deep)}
+.pg-fill.error{width:100% !important;animation:none;background:var(--red)}
+.pg-row{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap}
+.pg-msg{font-family:var(--mono);font-size:13px;color:var(--ink)}
+.pg-link{margin-left:auto;font-family:var(--display);font-size:11px;font-weight:600;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--orange-deep);
+  text-decoration:none;border-bottom:1px solid #E5C9A5;padding-bottom:2px}
 
 /* Action bar */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
@@ -316,6 +333,13 @@ input:focus,textarea:focus,select:focus{border-color:var(--gray)}
           and full company detail. Results land on the review page.
         </div>
         <button class="btn-go" id="b-enrich" style="margin-left:auto">Enrich and send to review</button>
+      </div>
+      <div class="progress" id="progress">
+        <div class="pg-bar"><div class="pg-fill" id="pg-fill"></div></div>
+        <div class="pg-row">
+          <span class="pg-msg" id="pg-msg">Starting…</span>
+          <a class="pg-link" id="pg-link" href="index.html" style="display:none">Open review page &rarr;</a>
+        </div>
       </div>
     </div>
   </section>
@@ -555,22 +579,72 @@ $("b-preview").onclick = async () => {
   }
 };
 
-/* enrich */
+/* enrich, with live progress by polling the batch feed */
+async function getBatchId(){
+  try{
+    const r = await fetch(CONFIG.BATCH_URL, { cache: "no-store" });
+    if(!r.ok) return null;
+    const t = await r.text();
+    let d; try{ d = JSON.parse(t); }catch(e){ return null; }
+    if(Array.isArray(d)) d = d[0] || {};
+    if(d && d.data) d = d.data;
+    return { batchId: String(d.batchId ?? ""), count: Number(d.count ?? (d.leads ? d.leads.length : 0)) };
+  }catch(e){ return null; }
+}
+
 $("b-enrich").onclick = async () => {
   const btn = $("b-enrich");
   const n = Number($("maxLeads").value) || 25;
-  btn.disabled = true; btn.textContent = "Sending…";
+
+  const panel = $("progress"), fill = $("pg-fill"), msg = $("pg-msg"), link = $("pg-link");
+  panel.classList.add("show");
+  link.style.display = "none";
+  fill.className = "pg-fill indeterminate";
+  msg.textContent = "Reading which batch is current…";
+  btn.disabled = true; btn.textContent = "Working…";
+  clearNotice();
+
+  // Note the batch that exists BEFORE we start, so we can detect the new one.
+  const before = await getBatchId();
+  const beforeId = before ? before.batchId : "";
+
+  let started;
   try{
-    const res = await post({ mode:"run", vertical: currentVertical, maxLeads: n, filters: collect() });
-    const count = res.enriching ?? n;
-    notice('<strong>Enriching '+count+' leads.</strong> This runs in the background and takes a couple of minutes. '+
-      'Open the <a href="'+CONFIG.REVIEW_PAGE+'">review page</a> when it finishes.');
-    btn.textContent = "Sent";
-    window.scrollTo({top:0, behavior:"smooth"});
+    started = await post({ mode:"run", vertical: currentVertical, maxLeads: n, filters: collect() });
   }catch(err){
-    notice("<strong>Nothing was sent.</strong> "+esc(err.message)+".", true);
+    fill.className = "pg-fill error";
+    msg.textContent = "Could not start: " + err.message;
     btn.disabled = false; btn.textContent = "Enrich and send to review";
+    return;
   }
+
+  const target = started.enriching ?? n;
+  msg.textContent = "Enriching " + target + " lead" + (target===1?"":"s") + ", searching and matching…";
+
+  // Poll the batch feed until a NEW batch id shows up.
+  const startedAt = Date.now();
+  const TIMEOUT = 5 * 60 * 1000; // 5 minutes
+  const tick = async () => {
+    if(Date.now() - startedAt > TIMEOUT){
+      fill.className = "pg-fill error";
+      msg.textContent = "Still working after 5 minutes. Check the review page shortly.";
+      link.style.display = "";
+      btn.disabled = false; btn.textContent = "Enrich and send to review";
+      return;
+    }
+    const now = await getBatchId();
+    if(now && now.batchId && now.batchId !== beforeId){
+      fill.className = "pg-fill done";
+      msg.textContent = "Done. " + now.count + " lead" + (now.count===1?"":"s") + " ready on the review page.";
+      link.style.display = "";
+      btn.disabled = false; btn.textContent = "Enrich and send to review";
+      return;
+    }
+    const secs = Math.round((Date.now() - startedAt)/1000);
+    msg.textContent = "Enriching " + target + " lead" + (target===1?"":"s") + "… " + secs + "s elapsed";
+    setTimeout(tick, 4000);
+  };
+  setTimeout(tick, 4000);
 };
 </script>
 </body>
