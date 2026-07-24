@@ -12,8 +12,8 @@
    CONFIG — edit these if your n8n webhook URLs ever change
    ============================================================ */
 const CONFIG = {
-  BATCH_URL:   "https://haggertybuilds.app.n8n.cloud/webhook/d50e89be-be92-4efd-a88f-6fed5f57fad8/lead-review-batch",
-  APPROVE_URL: "https://haggertybuilds.app.n8n.cloud/webhook/9ef10ebf-bd23-4453-882b-bb29768130a0/lead-review-approve",
+  BATCH_URL:   "https://haggertybuilds.app.n8n.cloud/webhook/lead-review-batch",
+  APPROVE_URL: "https://haggertybuilds.app.n8n.cloud/webhook/lead-review-approve",
   LABELS: ["Industrial", "Automotive", "Property Manager"],
   HOME_TERRITORIES: ["Central Valley", "Sacramento / North", "Bay Area"]
 };
@@ -460,7 +460,7 @@ $("b-send").onclick=async()=>{
   const strip=l=>{const o={...l};o.suggestedLabel=l._label;delete o._i;delete o._keep;delete o._label;return o;};
   try{
     const r=await fetch(CONFIG.APPROVE_URL,{
-      method:"POST",headers:{"Content-Type":"application/json"},
+      method:"POST",
       body:JSON.stringify({batchId:$("m-batch").textContent,
         leads:kept.map(strip),removed:LEADS.filter(l=>!l._keep).map(strip)})
     });
